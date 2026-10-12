@@ -16,11 +16,11 @@
     "lodash": "^4.17.21",
     "moment": "^2.30.1",
     "next": "15.5.27",
-    "nodemailer": "^6.9.0",
+    "nodemailer": "^10.1.0",
     "react": "19.1.0",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "19.1.0",
-    "sharp": "^0.33.0"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "prisma": "^6.10.0",
