@@ -10,8 +10,6 @@ speedmax is a set of Markdown instructions plus a small validator. Drop it into 
 - **Proven fixes.** Every fix is re-measured; fixes that don't help are reverted.
 - **Any stack.** Recipes for Next.js, React/Vite, Nuxt, SvelteKit, Astro, Rails, Django, Laravel, Express/Prisma, and plain HTML.
 
-The structure follows Cloudflare's [security-audit-skill](https://github.com/cloudflare/security-audit-skill).
-
 ---
 
 ## Contents
