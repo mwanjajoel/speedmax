@@ -12,6 +12,7 @@ Use this file at the start of every full audit (Phase 1), again after fixes (Pha
 - Run 3–5 times per route and report the median. Record every run's raw numbers.
 - Keep conditions identical between baseline and after: same routes, build command, profile, machine, and run count.
 - Never benchmark or load-test production or shared environments. External services such as PageSpeed Insights need the user's consent and a public URL.
+- Do not install or download tools (including `npx --yes lighthouse`) without the user's consent. If they decline, mark metric-dependent checks `needs_measurement`.
 - Record what you could not measure and why. Do not invent numbers.
 ```
 
@@ -31,7 +32,7 @@ Every other check is ranked by how much it moves these numbers. Without a baseli
    - Laravel: `php artisan optimize` then `php artisan serve` (or the project's container)
    - Static sites: serve the build directory with any static server.
 2. Pick routes: the home or landing page, the most-used authenticated page, one list or search page, and one detail page. If authentication blocks Lighthouse, use a seeded local test account or measure public routes only and record the gap.
-3. Run Lighthouse (mobile is the CLI default):
+3. Run Lighthouse (mobile is the CLI default), only after the user agrees, since `npx --yes` downloads it:
 
    ```bash
    npx --yes lighthouse http://localhost:3000/ \
@@ -50,7 +51,7 @@ Every other check is ranked by how much it moves these numbers. Without a baseli
    - `audits["largest-contentful-paint-element"]` (which element is the LCP; IMG-02 needs it)
    - `categories.performance.score`
    - The opportunities with the largest `details.overallSavingsMs`; they seed Phase 3.
-4. PageSpeed Insights (only with consent, and only for a public URL). It adds field data (CrUX) from real Chrome users when the site has enough traffic:
+4. PageSpeed Insights (only after the user agrees to send the URL to Google, and only for a public URL). It adds field data (CrUX) from real Chrome users when the site has enough traffic:
 
    ```bash
    curl -s "https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=<public-url>&strategy=mobile&category=performance"

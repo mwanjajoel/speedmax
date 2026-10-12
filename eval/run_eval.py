@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -35,11 +36,14 @@ SKILL_DIR = EVAL_DIR.parent / "skills" / "speedmax"
 SKILL_FILES = [p for p in SKILL_DIR.iterdir() if p.is_file() and (p.suffix in {".md", ".json"} or p.name == "validate-findings.cjs") and p.name != "README.md"]
 VALIDATOR = SKILL_DIR / "validate-findings.cjs"
 OUT = ".speedmax-out"
+VALIDATOR_IN_WS = ".claude/skills/speedmax/validate-findings.cjs"
+MAX_READ_BYTES = 5_000_000
 
 ALLOWED_TOOLS = [
     "Read", "Glob", "Grep", "Write", "Edit", "Skill", "Task", "Agent", "TodoWrite",
-    "Bash(ls:*)", "Bash(find:*)", "Bash(grep:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)",
-    "Bash(wc:*)", "Bash(du:*)", "Bash(stat:*)", "Bash(file:*)", "Bash(mkdir:*)", "Bash(node:*)",
+    "Bash(ls:*)", "Bash(grep:*)", "Bash(cat:*)", "Bash(head:*)", "Bash(tail:*)",
+    "Bash(wc:*)", "Bash(du:*)", "Bash(stat:*)", "Bash(file:*)", "Bash(mkdir:*)",
+    f"Bash(node {VALIDATOR_IN_WS}:*)",
     "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(git branch:*)",
     "Bash(git switch:*)", "Bash(git checkout:*)", "Bash(git add:*)", "Bash(git commit:*)", "Bash(git revert:*)",
 ]
@@ -64,23 +68,47 @@ def forbidden_invocations(command: str) -> list[str]:
     hits = []
     for segment in re.split(r"[;&|\n]+|\$\(", text):
         words = [w for w in segment.split() if not re.match(r"^\w+=", w)]
-        if words and words[0].split("/")[-1] in FORBIDDEN_PROGRAMS:
+        if not words:
+            continue
+        program = words[0].split("/")[-1]
+        if program in FORBIDDEN_PROGRAMS or (program == "node" and not is_validator_call(words[1:])):
             hits.append(segment.strip())
     return hits
 
 
+def is_validator_call(args: list[str]) -> bool:
+    """node may only run the skill's validator; inline code (-e/-p) or any other script is forbidden."""
+    script = args[0] if args else ""
+    return (script.removeprefix("./") == VALIDATOR_IN_WS or script.endswith("/" + VALIDATOR_IN_WS)) and not any(a.startswith("-") for a in args)
+
+
+ENV_ALLOWLIST = {"PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "TMPDIR"}
+ENV_AUTH_PREFIXES = ("ANTHROPIC_",)  # only what the claude CLI may need to authenticate
+
+
 def clean_env() -> dict[str, str]:
-    """Strip the host Claude Code session's variables so the child is an independent session."""
-    return {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE", "MLFLOW_CLAUDE"))}
+    """Allowlisted environment for child processes: no host secrets, no host Claude session variables."""
+    return {k: v for k, v in os.environ.items() if k in ENV_ALLOWLIST or k.startswith(ENV_AUTH_PREFIXES)}
+
+
+GIT_SAFE = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-c", "diff.external=", "-c", "core.pager=cat"]
+
+
+FIXTURE_IGNORED = (".claude", ".mcp.json", "CLAUDE.md", "CLAUDE.local.md", ".git")
 
 
 def git(ws: Path, *args: str) -> str:
-    return subprocess.run(["git", *args], cwd=ws, capture_output=True, text=True, check=False).stdout
+    env = {**clean_env(), "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+    return subprocess.run(["git", *GIT_SAFE, *args], cwd=ws, env=env, capture_output=True, text=True, check=False, timeout=60).stdout
 
 
 def prepare_workspace(run_root: Path, case_id: str, fixture: str, seed: str | None) -> Path:
     ws = run_root / f"{case_id}-{uuid.uuid4().hex[:6]}"
-    shutil.copytree(EVAL_DIR / "fixtures" / fixture, ws)
+    src = EVAL_DIR / "fixtures" / fixture
+    links = [p for p in src.rglob("*") if p.is_symlink()]
+    if links:
+        raise ValueError(f"fixture {fixture} contains symlinks: {links}")
+    shutil.copytree(src, ws, symlinks=True, ignore=shutil.ignore_patterns(*FIXTURE_IGNORED))
     generate(fixture, ws)
     with open(ws / ".gitignore", "a") as f:
         f.write(".claude/\n")
@@ -97,7 +125,15 @@ def prepare_workspace(run_root: Path, case_id: str, fixture: str, seed: str | No
     git(ws, "init", "-q", "-b", "main")
     git(ws, "add", "-A")
     git(ws, "-c", "user.name=eval", "-c", "user.email=eval@example.com", "commit", "-q", "-m", "fixture")
+    lock_readonly(ws / ".claude")
     return ws
+
+
+def lock_readonly(root: Path) -> None:
+    """The agent may run the validator but must not edit it or add project settings (hooks) under .claude/."""
+    for path in sorted(root.rglob("*"), reverse=True):
+        path.chmod(0o555 if path.is_dir() else 0o444)
+    root.chmod(0o555)
 
 
 def find_transcript(session_id: str) -> Path | None:
@@ -139,35 +175,58 @@ def attach_transcript_spans(session_id: str, events: list[dict]) -> None:
                 span.end()
 
 
-def read_json(path: Path):
+def regular_file_in(ws: Path, rel: str) -> Path | None:
+    """The path if it is a regular, non-symlink file inside ws within the size cap, else None."""
+    path = ws / rel
     try:
-        return json.loads(path.read_text())
+        if path.is_symlink() or not path.resolve().is_relative_to(ws.resolve()):
+            return None
+        st = path.lstat()
+    except (OSError, ValueError):
+        return None
+    return path if stat.S_ISREG(st.st_mode) and st.st_size <= MAX_READ_BYTES else None
+
+
+def read_text_capped(path: Path | None, limit: int = MAX_READ_BYTES) -> str | None:
+    if path is None:
+        return None
+    with open(path, "rb") as f:
+        return f.read(limit).decode("utf-8", errors="replace")
+
+
+def read_json(ws: Path, rel: str):
+    try:
+        return json.loads(read_text_capped(regular_file_in(ws, rel)))
     except Exception:
         return None
 
 
 def collect_outputs(ws: Path, result: dict) -> dict:
     out = ws / OUT
-    findings_path, ledger_path = out / "findings.json", out / "ledger.json"
+    findings_path, ledger_path = regular_file_in(ws, f"{OUT}/findings.json"), regular_file_in(ws, f"{OUT}/ledger.json")
     validator_errors = None
-    if findings_path.exists():
-        cmd = ["node", str(VALIDATOR), str(findings_path)] + ([str(ledger_path)] if ledger_path.exists() else [])
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        validator_errors = [line for line in proc.stderr.splitlines() if line.strip()]
+    if findings_path:
+        cmd = ["node", str(VALIDATOR), str(findings_path)] + ([str(ledger_path)] if ledger_path else [])
+        try:
+            proc = subprocess.run(cmd, env=clean_env(), capture_output=True, text=True, timeout=60)
+            validator_errors = [line for line in proc.stderr.splitlines() if line.strip()]
+        except subprocess.TimeoutExpired:
+            validator_errors = ["validator timed out"]
     seed_commit = git(ws, "rev-list", "--max-parents=0", "HEAD").strip()
-    changed = sorted(set(git(ws, "diff", "--name-only", seed_commit).split() + git(ws, "ls-files", "--others", "--exclude-standard").split()))
+    names = git(ws, "diff", "-z", "--name-only", seed_commit) + git(ws, "ls-files", "-z", "--others", "--exclude-standard")
+    changed = sorted({n for n in names.split("\0") if n})
     return {
         "final_response": result.get("result", ""),
         "workspace": str(ws),
-        "artifacts": sorted(p.name for p in out.iterdir()) if out.exists() else [],
-        "findings": read_json(findings_path),
-        "ledger": read_json(ledger_path),
-        "baseline": read_json(out / "baseline.json"),
+        "artifacts": sorted(p.name for p in out.iterdir()) if out.is_dir() and not out.is_symlink() else [],
+        "findings": read_json(ws, f"{OUT}/findings.json"),
+        "ledger": read_json(ws, f"{OUT}/ledger.json"),
+        "baseline": read_json(ws, f"{OUT}/baseline.json"),
         "validator_errors": validator_errors,
         "changed_files": changed,
         "branch": git(ws, "branch", "--show-current").strip(),
         "new_commits": git(ws, "log", "--format=%s", f"{seed_commit}..HEAD").splitlines(),
-        "file_contents": {f: (ws / f).read_text() for f in changed if (ws / f).is_file() and (ws / f).stat().st_size < 50_000},
+        "file_contents": {f: read_text_capped(p, 50_000) for f in changed if (p := regular_file_in(ws, f))},
         "permission_denials": result.get("permission_denials", []),
         "num_turns": result.get("num_turns"),
         "cost_usd": result.get("total_cost_usd"),
@@ -184,7 +243,7 @@ def make_predict_fn(run_root: Path, model: str, timeout_s: int):
             "--model", model,
             "--output-format", "stream-json", "--verbose",
             "--setting-sources", "project",
-            "--allowedTools", *ALLOWED_TOOLS,
+            "--allowedTools", *ALLOWED_TOOLS, f"Bash(node {ws / VALIDATOR_IN_WS}:*)",
             "--disallowedTools", *DISALLOWED_TOOLS,
         ]
         started = time.time()

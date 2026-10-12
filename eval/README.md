@@ -12,7 +12,10 @@ This follows MLflow's [Evaluating and Improving Agent Skills](https://mlflow.org
 2. **Agent run** (`predict_fn`):
    - Each case copies its fixture into a throwaway git workspace under `.runs/`.
    - It installs the skill as a project skill and runs `claude -p` headless.
-   - Tools are restricted: no network, no installs, no builds. Denied attempts are still recorded.
+   - Tools are restricted by an allowlist: read-only shell commands, git, file edits, and `node` only for the skill's validator. Web tools are disallowed. Denied attempts are still recorded.
+   - The agent gets an allowlisted environment (`PATH`, `HOME`, locale, and `ANTHROPIC_*` for authentication), not your full shell environment.
+   - Fixtures are copied without symlinks or agent configuration (`.claude/`, `.mcp.json`, `CLAUDE.md`), and the workspace's `.claude/` is made read-only so the agent can't edit the validator or add settings.
+   - This is not an OS sandbox: the agent still runs as you. Run the eval on a machine where that is acceptable.
 3. **Tracing.** The Claude Code session transcript is converted into MLflow spans, one per LLM turn and tool call, using MLflow's own converter (the one behind `mlflow autolog claude`). The spans nest under the `speedmax_skill_run` trace that `mlflow.genai.evaluate` scores.
 4. **Scorers.** All of these are custom `@scorer` functions:
 
@@ -41,8 +44,8 @@ This follows MLflow's [Evaluating and Improving Agent Skills](https://mlflow.org
 
 ```bash
 cd eval
-uv sync --python 3.12
-uv run mlflow server --backend-store-uri sqlite:///mlflow.db --port 5055
+uv sync --locked --python 3.12
+uv run mlflow server --backend-store-uri sqlite:///mlflow.db --host 127.0.0.1 --port 5055
 ```
 
 In another shell:
@@ -55,5 +58,6 @@ Open http://127.0.0.1:5055, then **Experiments → speedmax-skill-eval → Evalu
 
 Notes:
 - The agent and the judge run through your logged-in Claude Code CLI, so runs use your Claude plan or API credits. A full audit case typically takes 5–20 minutes.
-- Each workspace stays in `.runs/<stamp>-<group>/<case>/` with the raw `stream-json` next to it, so a failing case can be inspected end to end.
+- Each workspace stays in `.runs/<stamp>-<group>/<case>/` with the raw `stream-json` next to it, so a failing case can be inspected end to end. Its `.claude/` is read-only; to delete old runs, use `chmod -R u+w .runs && rm -rf .runs`.
+- Unit tests for the harness's containment helpers run without an agent: `uv run python -m unittest test_run_eval`.
 - Results vary between runs. Repeat a group 2–3 times before drawing conclusions from a single failure.
