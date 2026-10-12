@@ -61,7 +61,7 @@ The 18 checks:
 | `validate-findings.cjs` | Zero-dependency validator for `findings.json` and `ledger.json` |
 | `validate-findings.test.cjs` | Validator tests |
 
-All skill files live in `skills/speedmax/`. The `eval/` directory holds the MLflow evaluation harness; it is not part of the installed skill.
+All skill files live in `skills/speedmax/`.
 
 ## Installation
 
@@ -131,14 +131,14 @@ In full audit mode, an unspecified output directory defaults to `~/speedmax-audi
 
 ## Evaluation
 
-`eval/` tests the skill end to end with [MLflow](https://mlflow.org/blog/evaluating-improving-agent-skills/). Each case runs headless in Claude Code against a fixture app and is traced and scored. Six cases cover:
+Release v0.1.0 was tested end to end with [MLflow](https://mlflow.org/blog/evaluating-improving-agent-skills/). Each case ran headless in Claude Code against a fixture app and was traced and scored. Six cases covered:
 
 - a full audit of a slow app with 14 planted issues
 - a full audit of an already-optimized app (false positives)
 - three guidance questions
 - one fix run
 
-In the latest run, every case passed all its checks. The slow-app audit found all 14 planted issues, and the fix run changed only the approved finding. Each case ran once, and real Lighthouse runs were not exercised, because the fixtures have no installed dependencies. See [eval/README.md](eval/README.md) to run it.
+Every case passed all its checks. The slow-app audit found all 14 planted issues, and the fix run changed only the approved finding. Each case ran once, and real Lighthouse runs were not exercised, because the fixtures have no installed dependencies. The evaluation harness is not on `main`; it is available at the [`v0.1.0` tag](https://github.com/mwanjajoel/speedmax/tree/v0.1.0/eval).
 
 ## License
 
