@@ -83,7 +83,7 @@ npx skills add https://github.com/mwanjajoel/speedmax \
 To pin a released version instead of tracking `main`, install from a tag:
 
 ```bash
-npx skills add https://github.com/mwanjajoel/speedmax/tree/v0.1.0 \
+npx skills add https://github.com/mwanjajoel/speedmax/tree/v0.1.1 \
   --skill speedmax
 ```
 
