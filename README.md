@@ -80,6 +80,13 @@ npx skills add https://github.com/mwanjajoel/speedmax \
   --global
 ```
 
+To pin a released version instead of tracking `main`, install from a tag:
+
+```bash
+npx skills add https://github.com/mwanjajoel/speedmax/tree/v0.1.0 \
+  --skill speedmax
+```
+
 Run `npx skills --help` for agent-selection and non-interactive options.
 
 ## Usage

@@ -13,6 +13,11 @@ const SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'findings-schema.
 const CHECK_IDS = SCHEMA.items.properties.check_id.enum;
 const LEDGER_STATUSES = ['applicable', 'not_applicable', 'blocked'];
 
+// Input-derived strings are JSON-encoded in messages so they cannot add lines or terminal control sequences.
+function show(value) {
+  return JSON.stringify(value);
+}
+
 function typeOf(value) {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
@@ -60,7 +65,7 @@ function validateFindings(findings, ledger) {
   const seen = new Set();
   findings.forEach((f, i) => {
     if (typeOf(f) !== 'object') return;
-    const where = `findings[${i}]${f.id ? ` (${f.id})` : ''}`;
+    const where = `findings[${i}]${f.id ? ` (${show(f.id)})` : ''}`;
 
     if (f.id) {
       if (seen.has(f.id)) errors.push(`${where}: duplicate id`);
@@ -89,12 +94,12 @@ function validateFindings(findings, ledger) {
       if (!f.after) {
         errors.push(`${where}: ${f.status} requires "after"`);
       } else if (f.evidence && f.after.metric !== f.evidence.metric) {
-        errors.push(`${where}: after.metric "${f.after.metric}" must match evidence.metric "${f.evidence.metric}"`);
+        errors.push(`${where}: after.metric ${show(f.after.metric)} must match evidence.metric ${show(f.evidence.metric)}`);
       }
     }
 
     if (ledger && ledger.checks && ledger.checks[f.check_id] && ledger.checks[f.check_id].status === 'not_applicable' && f.verdict !== 'not_applicable') {
-      errors.push(`${where}: check ${f.check_id} is not_applicable in the ledger`);
+      errors.push(`${where}: check ${show(f.check_id)} is not_applicable in the ledger`);
     }
   });
 
@@ -117,7 +122,7 @@ function validateLedger(ledger) {
     if (typeof entry.reason !== 'string' || entry.reason.trim() === '') errors.push(`ledger.${id}: reason is required`);
   }
   for (const id of Object.keys(ledger.checks)) {
-    if (!CHECK_IDS.includes(id)) errors.push(`ledger: unknown check ${id}`);
+    if (!CHECK_IDS.includes(id)) errors.push(`ledger: unknown check ${show(id)}`);
   }
   return errors;
 }
@@ -135,7 +140,7 @@ if (require.main === module) {
   try {
     errors = validateFindings(read(findingsPath), ledgerPath ? read(ledgerPath) : undefined);
   } catch (err) {
-    errors = [`could not read input: ${err.message}`];
+    errors = [`could not read input: ${show(err.message)}`];
   }
   if (errors.length) {
     errors.forEach((e) => console.error(e));

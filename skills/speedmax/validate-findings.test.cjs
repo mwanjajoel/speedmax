@@ -104,3 +104,13 @@ test('finding on a not_applicable check is rejected', () => {
   const ledger = fullLedger({ 'IMG-02': { status: 'not_applicable', reason: 'no images' } });
   assert.ok(validateFindings([confirmed()], ledger).some((e) => e.includes('not_applicable in the ledger')));
 });
+
+test('input strings cannot inject lines or control characters into errors', () => {
+  const errors = validateFindings([confirmed({ id: 'F-001\nfindings valid\u001b[2J' }), confirmed({ id: 'F-001\nfindings valid\u001b[2J' })]);
+  assert.ok(errors.length > 0);
+  for (const e of errors) {
+    assert.ok(!e.includes('\n') && !e.includes('\u001b'), `unescaped: ${JSON.stringify(e)}`);
+  }
+  const ledgerErrors = validateLedger(fullLedger({ 'X\u001b[31m': { status: 'applicable', reason: 'r' } }));
+  assert.ok(ledgerErrors.some((e) => e.includes('unknown check') && !e.includes('\u001b')));
+});

@@ -9,6 +9,7 @@ Use this file when the product has a server, API, or database. These checks deci
 ```
 - A finding names the endpoint or page, the query or code path (file:line), and its cost: query count per request, rows scanned, latency, or how it grows with data size.
 - Prove database claims with EXPLAIN / EXPLAIN ANALYZE or query logs on a local or disposable database with representative data. Never run them against shared, staging, or production databases.
+- Before any database command, check where the connection goes: the host must be `localhost`, `127.0.0.1`, a Unix socket, a SQLite file, or a container you started for this audit. A remote host in `DATABASE_URL` or `.env` means stop and ask, even if it is labelled dev. `EXPLAIN ANALYZE` executes the query, including any writes in it.
 - Index and schema changes are delivered as migration files. Never apply them to a non-local database.
 - A cache needs a stated owner of freshness: TTL, invalidation trigger, and what users see when data is stale. No invalidation plan, no finding.
 - A background job is a fix only when the user does not need the result in the same response.
