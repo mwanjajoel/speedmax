@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lean Studio</title>
+    <link rel="preload" as="image" href="/img/hero-1280.avif" type="image/avif" fetchpriority="high" imagesrcset="/img/hero-640.avif 640w, /img/hero-1280.avif 1280w" imagesizes="100vw" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <header><a href="/">Lean Studio</a></header>
+    <main>
+      <picture>
+        <source type="image/avif" srcset="/img/hero-640.avif 640w, /img/hero-1280.avif 1280w" sizes="100vw" />
+        <source type="image/webp" srcset="/img/hero-640.webp 640w, /img/hero-1280.webp 1280w" sizes="100vw" />
+        <img src="/img/hero-1280.webp" alt="Studio workspace" width="1280" height="720" fetchpriority="high" />
+      </picture>
+      <h1>We build small, fast websites.</h1>
+      <section class="cards">
+        <img src="/img/card-1.webp" alt="Project one" width="400" height="300" loading="lazy" decoding="async" />
+        <img src="/img/card-2.webp" alt="Project two" width="400" height="300" loading="lazy" decoding="async" />
+        <img src="/img/card-3.webp" alt="Project three" width="400" height="300" loading="lazy" decoding="async" />
+      </section>
+      <form id="contact">
+        <label>Email <input type="email" name="email" required /></label>
+        <button type="submit">Get in touch</button>
+        <p id="status" role="status"></p>
+      </form>
+    </main>
+  </body>
+</html>

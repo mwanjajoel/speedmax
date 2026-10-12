@@ -1,0 +1,59 @@
+{
+  "$comment": "Contract for findings.json. validate-findings.cjs reads the enums from this file and enforces the cross-field rules.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "check_id", "title", "verdict", "status"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^F-[0-9]{3,}$" },
+      "check_id": {
+        "type": "string",
+        "enum": [
+          "MEAS-01", "IMG-01", "IMG-02", "CDN-01", "FONT-01", "3P-01",
+          "DEP-01", "JS-01", "UX-03",
+          "DB-01", "DB-02", "DB-03", "CACHE-01", "JOB-01",
+          "UX-01", "UX-02",
+          "INFRA-01", "INFRA-02"
+        ]
+      },
+      "title": { "type": "string", "minLength": 1 },
+      "verdict": { "type": "string", "enum": ["confirmed", "needs_measurement", "not_applicable"] },
+      "impact": { "type": "string", "enum": ["high", "medium", "low"] },
+      "effort": { "type": "string", "enum": ["S", "M", "L"] },
+      "routes": { "type": "array", "items": { "type": "string" } },
+      "locations": { "type": "array", "items": { "type": "string", "pattern": "^[^:]+(:[0-9]+(-[0-9]+)?)?$" } },
+      "mechanism": { "type": "string" },
+      "missing": { "type": "string" },
+      "evidence": {
+        "type": "object",
+        "required": ["tool", "metric"],
+        "properties": {
+          "tool": { "type": "string" },
+          "metric": { "type": "string" },
+          "baseline": { "type": ["number", "null"] },
+          "unit": { "type": "string" },
+          "runs": { "type": "integer" },
+          "estimate": { "type": "string" }
+        }
+      },
+      "fix": {
+        "type": "object",
+        "required": ["summary"],
+        "properties": {
+          "summary": { "type": "string", "minLength": 1 },
+          "files": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "expected": { "type": "string" },
+      "status": { "type": "string", "enum": ["proposed", "approved", "applied", "verified", "reverted"] },
+      "after": {
+        "type": "object",
+        "required": ["metric", "value"],
+        "properties": {
+          "metric": { "type": "string" },
+          "value": { "type": "number" }
+        }
+      }
+    }
+  }
+}

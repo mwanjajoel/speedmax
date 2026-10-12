@@ -1,0 +1,9 @@
+[project]
+name = "speedmax-eval"
+version = "0.1.0"
+description = "MLflow evaluation of the speedmax skill running in Claude Code"
+requires-python = ">=3.11,<3.14"
+dependencies = ["mlflow>=3.4"]
+
+[tool.uv]
+package = false

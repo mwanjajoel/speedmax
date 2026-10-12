@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mlflow-ui",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--directory", "eval", "mlflow", "server", "--backend-store-uri", "sqlite:///mlflow.db", "--host", "127.0.0.1", "--port", "5055"],
+      "port": 5055
+    }
+  ]
+}
