@@ -31,7 +31,7 @@ from cases import FIX_SEED_FINDINGS, GROUPS
 from gen_assets import generate
 
 EVAL_DIR = Path(__file__).resolve().parent
-SKILL_DIR = EVAL_DIR.parent
+SKILL_DIR = EVAL_DIR.parent / "skills" / "speedmax"
 SKILL_FILES = [p for p in SKILL_DIR.iterdir() if p.is_file() and (p.suffix in {".md", ".json"} or p.name == "validate-findings.cjs") and p.name != "README.md"]
 VALIDATOR = SKILL_DIR / "validate-findings.cjs"
 OUT = ".speedmax-out"
